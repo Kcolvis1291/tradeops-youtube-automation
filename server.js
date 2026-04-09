@@ -1,5 +1,5 @@
 /**
- * TradeOps Autonomous YouTube Automation Server — v2
+ * TradeOps Autonomous YouTube Automation Server — v3
  *
  * STRATEGY: Education-first. Every video = a HOW-TO implementation tutorial.
  * CTA: "Want this done FOR you? Visit tradeops.com" (done-for-you positioning)
@@ -11,8 +11,18 @@
  *   TradeOps OWNS     → "Here's exactly HOW to build the system — step by step."
  *
  * FORMATS: TUTORIAL | BREAKDOWN | INTERVIEW
- * SCHEDULE: Tuesday 7pm ET (tutorial) | Thursday 7pm ET (breakdown) | Friday 7pm ET (interview, bi-weekly)
+ * SCHEDULE: Tuesday 5am ET (tutorial) | Thursday 5am ET (breakdown) | Friday 5am ET (interview, bi-weekly)
  * PILLARS: 8 rotating education-first content pillars
+ *
+ * v3 ADDITIONS:
+ *   - ElevenLabs TTS voiceover (ELEVENLABS_API_KEY)
+ *   - FFmpeg video render → MP4 landscape + vertical Shorts
+ *   - YouTube auto-upload (YOUTUBE_CLIENT_ID / SECRET / REFRESH_TOKEN)
+ *   - TikTok auto-post (TIKTOK_ACCESS_TOKEN)
+ *   - Instagram Reels auto-post (INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_USER_ID)
+ *   - Twitter/X auto-post (TWITTER_API_KEY / SECRET / ACCESS_TOKEN / ACCESS_TOKEN_SECRET)
+ *   - /auth/youtube for one-time Google OAuth setup
+ *   - /media/:filename for serving videos to Instagram
  */
 
 require('dotenv').config();
@@ -42,6 +52,17 @@ const { generateCommentResponse } = require('./agents/engageAgent');
 const { runQA, getPipelineSummary } = require('./agents/managerQaAgent');
 const { screenContent } = require('./agents/complianceScreener');
 
+// v3: Video production + publishing agents
+const { generateVoiceover } = require('./agents/elevenLabsAgent');
+const { renderVideo } = require('./agents/videoRenderer');
+const { uploadVideoAndShorts, getAuthUrl, exchangeCodeForTokens } = require('./agents/youtubeAgent');
+const { uploadToTikTok } = require('./agents/tiktokAgent');
+const { uploadToInstagram } = require('./agents/instagramAgent');
+const { uploadToTwitter } = require('./agents/twitterAgent');
+
+const path = require('path');
+const fs = require('fs');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -61,7 +82,7 @@ app.use(express.static('public'));
 let jobs = [];
 let contentQueue = [];
 
-// ── Job Queue ─────────────────────────────────────────────────────────────────
+// ── Job Queue ────────────────────────────────────────────────────────────────
 function createJob(type, meta = {}) {
   const job = { id: uuidv4(), type, ...meta, status: 'pending', startedAt: null, completedAt: null, result: null, error: null, qaScore: null };
   jobs.push(job);
@@ -129,7 +150,7 @@ async function runFullPipeline(options = {}) {
       relatedVideoTitle: getRelatedVideo(pillar, format),
     }, API_KEY);
 
-    // 5. Thumbnails — outcome/system-focused, not clickbait
+    // 5. Thumbnails — in outcome/system-focused, not clickbait
     console.log(`[Pipeline] Generating thumbnails...`);
     const thumbnails = await generateThumbnails({
       topic,
@@ -172,6 +193,88 @@ async function runFullPipeline(options = {}) {
       createdAt: new Date().toISOString(),
     };
 
+    // ── 9. Video Production + Publishing (only if QA passed) ─────────────────
+    let videoResults = null;
+    let publishResults = null;
+
+    if (qaResult.readyForPublish && process.env.ELEVENLABS_API_KEY) {
+      try {
+        console.log(`[Pipeline] Generating ElevenLabs voiceover...`);
+        const voiceover = await generateVoiceover({
+          script: scriptResult.script,
+          apiKey: process.env.ELEVENLABS_API_KEY,
+        });
+
+        console.log(`[Pipeline] Rendering video (FFmpeg)...`);
+        videoResults = await renderVideo({
+          script: scriptResult.script,
+          title: seo.title,
+          format,
+          audioPath: voiceover.audioPath,
+          outputDir: '/tmp',
+        });
+
+        // Publish to YouTube (full video + Shorts)
+        publishResults = { youtube: null, tiktok: null, instagram: null, twitter: null };
+
+        if (process.env.YOUTUBE_REFRESH_TOKEN) {
+          try {
+            console.log(`[Pipeline] Uploading to YouTube...`);
+            publishResults.youtube = await uploadVideoAndShorts({
+              landscapePath: videoResults.landscapePath,
+              shortsPath: videoResults.shortsPath,
+              contentPackage: finalPackage,
+              publishNow: true,
+            });
+            console.log(`[Pipeline] ✅ YouTube: ${publishResults.youtube.video?.url}`);
+          } catch (e) { console.error(`[Pipeline] YouTube upload failed: ${e.message}`); publishResults.youtube = { error: e.message }; }
+        }
+
+        // Post Shorts to TikTok
+        if (process.env.TIKTOK_ACCESS_TOKEN && videoResults.shortsPath) {
+          try {
+            console.log(`[Pipeline] Posting to TikTok...`);
+            publishResults.tiktok = await uploadToTikTok({ videoPath: videoResults.shortsPath, contentPackage: finalPackage });
+            console.log(`[Pipeline] ✅ TikTok published`);
+          } catch (e) { console.error(`[Pipeline] TikTok upload failed: ${e.message}`); publishResults.tiktok = { error: e.message }; }
+        }
+
+        // Post Reels to Instagram
+        if (process.env.INSTAGRAM_ACCESS_TOKEN && videoResults.shortsPath) {
+          try {
+            console.log(`[Pipeline] Posting to Instagram...`);
+            publishResults.instagram = await uploadToInstagram({ videoPath: videoResults.shortsPath, contentPackage: finalPackage });
+            console.log(`[Pipeline] ✅ Instagram Reel published`);
+          } catch (e) { console.error(`[Pipeline] Instagram upload failed: ${e.message}`); publishResults.instagram = { error: e.message }; }
+        }
+
+        // Post to Twitter/X
+        if (process.env.TWITTER_API_KEY && videoResults.shortsPath) {
+          try {
+            console.log(`[Pipeline] Posting to Twitter/X...`);
+            publishResults.twitter = await uploadToTwitter({ videoPath: videoResults.shortsPath, contentPackage: finalPackage });
+            console.log(`[Pipeline] ✅ Twitter: ${publishResults.twitter.url}`);
+          } catch (e) { console.error(`[Pipeline] Twitter upload failed: ${e.message}`); publishResults.twitter = { error: e.message }; }
+        }
+
+        // Clean up temp video files
+        try {
+          if (videoResults.landscapePath && fs.existsSync(videoResults.landscapePath)) fs.unlinkSync(videoResults.landscapePath);
+          if (videoResults.shortsPath && fs.existsSync(videoResults.shortsPath)) fs.unlinkSync(videoResults.shortsPath);
+          if (voiceover.audioPath && fs.existsSync(voiceover.audioPath)) fs.unlinkSync(voiceover.audioPath);
+        } catch (e) { /* silent cleanup */ }
+
+      } catch (videoErr) {
+        console.error(`[Pipeline] ⚠️ Video/publish step failed: ${videoErr.message}`);
+        videoResults = { error: videoErr.message };
+      }
+    } else if (qaResult.readyForPublish && !process.env.ELEVENLABS_API_KEY) {
+      console.log(`[Pipeline] ℹ️ Skipping video render — ELEVENLABS_API_KEY not set.`);
+    }
+
+    finalPackage.videoResults = videoResults;
+    finalPackage.publishResults = publishResults;
+
     contentQueue.push({
       ...finalPackage,
       status: qaResult.readyForPublish ? 'ready' : 'needs_review',
@@ -185,10 +288,15 @@ async function runFullPipeline(options = {}) {
       qaScore: qaResult.overallScore,
       pillar,
       format,
+      videoResults,
+      publishResults,
     });
 
     const statusIcon = qaResult.readyForPublish ? '✅' : '⚠️';
-    console.log(`[Pipeline] ${statusIcon} Done | QA: ${qaResult.overallScore}/100 | Impl: ${qaResult.implementationTest} | Status: ${qaResult.readyForPublish ? 'READY' : 'NEEDS REVIEW'}`);
+    const publishSummary = publishResults
+      ? Object.entries(publishResults).filter(([, v]) => v && !v.error).map(([k]) => k).join(', ') || 'none posted'
+      : 'video disabled';
+    console.log(`[Pipeline] ${statusIcon} Done | QA: ${qaResult.overallScore}/100 | Published: ${publishSummary}`);
     sendWebhookNotification(finalPackage, qaResult);
     return finalPackage;
 
@@ -411,6 +519,64 @@ app.get('/api/calendar', (req, res) => res.json(getContentCalendar()));
 
 app.get('/', (req, res) => res.sendFile(__dirname + '/public/index.html'));
 
+// ── YouTube OAuth Flow (one-time setup) ───────────────────────────────────────
+app.get('/auth/youtube', (req, res) => {
+  try {
+    const authUrl = getAuthUrl();
+    res.redirect(authUrl);
+  } catch (e) {
+    res.status(500).send(`<h2>YouTube OAuth Setup Error</h2><p>${e.message}</p><p>Set YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET in Railway environment variables first.</p>`);
+  }
+});
+
+app.get('/auth/youtube/callback', async (req, res) => {
+  const { code, error } = req.query;
+  if (error) return res.status(400).send(`<h2>Auth Error</h2><p>${error}</p>`);
+  if (!code) return res.status(400).send('<h2>No auth code received</h2>');
+
+  try {
+    const tokens = await exchangeCodeForTokens(code);
+    res.send(`
+      <h2>✅ YouTube Authorization Successful!</h2>
+      <p>Copy the <strong>refresh_token</strong> below and add it as <code>YOUTUBE_REFRESH_TOKEN</code> in your Railway environment variables:</p>
+      <pre style="background:#f0f0f0;padding:20px;border-radius:8px;word-break:break-all;">${tokens.refresh_token}</pre>
+      <p><strong>Access Token</strong> (expires in 1 hour — you don't need to save this):</p>
+      <pre style="background:#f0f0f0;padding:20px;border-radius:8px;word-break:break-all;opacity:0.6;">${tokens.access_token}</pre>
+      <hr>
+      <p>After adding YOUTUBE_REFRESH_TOKEN to Railway, redeploy and the pipeline will auto-upload to YouTube.</p>
+    `);
+  } catch (e) {
+    res.status(500).send(`<h2>Token Exchange Error</h2><p>${e.message}</p>`);
+  }
+});
+
+// ── Media File Server (for Instagram — needs public URL to pull from) ─────────
+app.use('/media', express.static('/tmp', {
+  dotfiles: 'deny',
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.mp4')) res.setHeader('Content-Type', 'video/mp4');
+  },
+}));
+
+// ── Publishing Status API ─────────────────────────────────────────────────────
+app.get('/api/publish-status', (req, res) => {
+  const published = contentQueue
+    .filter(c => c.publishResults)
+    .slice(-10)
+    .map(c => ({
+      title: c.seo?.title,
+      format: c.format,
+      pillar: c.pillar,
+      createdAt: c.createdAt,
+      youtube: c.publishResults?.youtube?.video?.url || c.publishResults?.youtube?.error || null,
+      youtubeShorts: c.publishResults?.youtube?.shorts?.url || null,
+      tiktok: c.publishResults?.tiktok?.publishId || c.publishResults?.tiktok?.error || null,
+      instagram: c.publishResults?.instagram?.mediaId || c.publishResults?.instagram?.error || null,
+      twitter: c.publishResults?.twitter?.url || c.publishResults?.twitter?.error || null,
+    }));
+  res.json({ published, total: published.length });
+});
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`
@@ -421,16 +587,10 @@ app.listen(PORT, () => {
 ║  Strategy: Education-First HOW-TO Implementation         ║
 ║  CTA: "Done for you — visit tradeops.com"                ║
 ╠══════════════════════════════════════════════════════════╣
-║  Pillars: ${CONTENT_PILLARS.length} rotating education pillars                  ║
-║  Formats: Tutorial | Breakdown | Interview               ║
+║  Pillars: ${CONTENT_PILLARS.length} rotating education pillars                    ║
+║  Formats: Tutorial | Breakdown | Interview                ║
 ╠══════════════════════════════════════════════════════════╣
-║  Cron: Tue 5am ET  → Tutorial pipeline                   ║
-║        Thu 5am ET  → Breakdown pipeline                  ║
-║        Fri 5am ET  → Interview pipeline (bi-weekly)      ║
-║        Daily 7am   → Trend scan                          ║
-║        Hourly      → Publish reminders                   ║
-╠══════════════════════════════════════════════════════════╣
-║  Beats: Profitable Tradie + Profit for Contractors       ║
+║  Cron: Tue 5am ET  j�HH�Q�ѽɥ�������������������������������VD+�VD��������Q�ԀՅ��P���H�	ɕ����ݸ�����������������������������VD+�VD��������ɤ�Յ��P���H�%�ѕ�٥�܁�������������ݕ���䤐�������VD+�VD������������݅������H�Qɕ���͍�����������������������������VD+�VD��������!��ɱ䀀�����H�AՉ��͠�ɕ������̀��������������������VD+�Vk�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�VC�Vt(�����)���()���ձ��������̀����* Contractors       ║
 ║         by going 2x deeper on implementation             ║
 ╚══════════════════════════════════════════════════════════╝
   `);
