@@ -33,7 +33,7 @@ const PUBLISH_SCHEDULE = {
     note: 'Thursday evening before Friday. Contractors planning weekend admin time.',
   },
   interview: {
-    days: ['Friday],
+    days: ['Friday'],
     time: '19:00',
     timezone: 'America/New_York',
     videosPerWeek: 0.5,
