@@ -1,10 +1,15 @@
 {
   "name": "tradeops-youtube-automation",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "description": "TradeOps — Autonomous YouTube content pipeline for home service business operators",
   "main": "server.js",
-  "scripts": { "start": "node server.js", "dev": "nodemon server.js" },
-  "engines": { "node": ">=20.0.0" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "node-cron": "^3.0.3",
@@ -12,7 +17,13 @@
     "dotenv": "^16.3.1",
     "cors": "^2.8.5",
     "body-parser": "^1.20.2",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "googleapis": "^140.0.0",
+    "ffmpeg-static": "^5.2.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "canvas": "^2.11.2"
   },
-  "devDependencies": { "nodemon": "^3.0.2" }
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
 }
