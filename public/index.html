@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TradeOps YouTube Automation v2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e2e2e2; min-height: 100vh; }
+
+  header { background: #141414; padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #F05A28; }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-mark { width: 34px; height: 34px; background: #F05A28; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1rem; color: white; letter-spacing: -1px; }
+  header h1 { font-size: 1.3rem; font-weight: 800; color: #fff; }
+  header h1 span { color: #F05A28; }
+  .strategy-badge { background: #1a0d08; border: 1px solid #F05A2840; color: #F05A28; font-size: 0.72rem; font-weight: 700; padding: 4px 10px; border-radius: 20px; }
+  .status-pill { display: flex; align-items: center; gap: 6px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 20px; padding: 5px 12px; font-size: 0.75rem; color: #888; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
+
+  .container { max-width: 1440px; margin: 0 auto; padding: 20px 28px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 18px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 18px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-bottom: 18px; }
+
+  .card { background: #161616; border: 1px solid #222; border-radius: 10px; padding: 16px; }
+  .card h2 { font-size: 0.68rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 9px; }
+  .metric { font-size: 2rem; font-weight: 800; color: #f1f1f1; }
+  .metric-orange { color: #F05A28; }
+  .metric-sub { font-size: 0.75rem; color: #444; margin-top: 2px; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; }
+  .badge-green { background:#052e16; color:#4ade80; border:1px solid #166534; }
+  .badge-orange { background:#431407; color:#fb923c; border:1px solid #7c2d12; }
+  .badge-yellow { background:#422006; color:#fbbf24; border:1px solid #78350f; }
+  .badge-red { background:#450a0a; color:#f87171; border:1px solid #7f1d1d; }
+  .badge-blue { background:#0c1a35; color:#60a5fa; border:1px solid #1d4ed8; }
+  .badge-purple { background:#1e0a35; color:#c084fc; border:1px solid #6b21a8; }
+  .badge-grey { background:#1a1a1a; color:#555; border:1px solid #2a2a2a; }
+
+  .btn { padding: 8px 16px; border-radius: 7px; border: none; cursor: pointer; font-size: 0.82rem; font-weight: 700; transition: all .15s; }
+  .btn-orange { background:#F05A28; color:#fff; }
+  .btn-orange:hover { background:#d44d20; }
+  .btn-dark { background:#1a1a1a; border:1px solid #2a2a2a; color:#bbb; }
+  .btn-dark:hover { border-color:#F05A28; color:#F05A28; }
+  .btn-sm { padding:5px 10px; font-size:.75rem; }
+  .btn:disabled { opacity:.4; cursor:not-allowed; }
+
+  .run-banner { background: linear-gradient(135deg,#161616,#1a0d08); border:1px solid #F05A2828; border-radius:10px; padding:18px 22px; margin-bottom:18px; display:flex; justify-content:space-between; align-items:center; }
+  .run-banner h3 { font-size:1rem; font-weight:800; color:#f1f1f1; margin-bottom:3px; }
+  .run-banner p { font-size:.78rem; color:#555; }
+  .run-btns { display:flex; gap:8px; flex-wrap:wrap; }
+
+  .competitor-intel { background:#161616; border:1px solid #222; border-radius:10px; padding:16px; margin-bottom:18px; }
+  .competitor-intel h3 { font-size:.8rem; font-weight:700; color:#555; text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; }
+  .comp-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .comp-card { background:#0f0f0f; border-radius:8px; padding:12px; border-left:3px solid; }
+  .comp-card.red { border-color:#ef4444; }
+  .comp-card.yellow { border-color:#fbbf24; }
+  .comp-card.blue { border-color:#3b82f6; }
+  .comp-name { font-size:.78rem; font-weight:700; color:#bbb; margin-bottom:4px; }
+  .comp-gap { font-size:.73rem; color:#555; line-height:1.5; }
+  .comp-ours { font-size:.73rem; color:#F05A28; margin-top:6px; font-weight:600; }
+
+  .pillar-grid { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:18px; }
+  .pillar-tag { background:#161616; border:1px solid #222; border-radius:6px; padding:5px 11px; font-size:.74rem; color:#777; cursor:pointer; transition:all .15s; }
+  .pillar-tag:hover,.pillar-tag.active { border-color:#F05A28; color:#F05A28; background:#1a0d08; }
+
+  .tab-bar { display:flex; gap:2px; background:#0f0f0f; border-radius:8px; padding:3px; margin-bottom:16px; border:1px solid #1e1e1e; }
+  .tab { padding:7px 14px; border-radius:5px; cursor:pointer; font-size:.78rem; font-weight:600; color:#444; transition:all .15s; border:none; background:transparent; }
+  .tab.active { background:#161616; color:#f1f1f1; border:1px solid #222; }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
+
+  .table { width:100%; border-collapse:collapse; font-size:.78rem; }
+  .table th { text-align:left; padding:7px 10px; border-bottom:1px solid #1e1e1e; color:#444; font-weight:700; font-size:.67rem; text-transform:uppercase; }
+  .table td { padding:9px 10px; border-bottom:1px solid #161616; color:#aaa; vertical-align:top; }
+  .table tr:hover td { background:#1a1a1a; }
+
+  .score-bar { height:4px; background:#222; border-radius:3px; margin-top:4px; }
+  .score-fill { height:100%; border-radius:3px; }
+  .score-high { background:#22c55e; }
+  .score-mid { background:#fbbf24; }
+  .score-low { background:#ef4444; }
+
+  .content-item { padding:12px; background:#0f0f0f; border-radius:8px; margin-bottom:8px; border:1px solid #1a1a1a; }
+  .content-title { font-weight:700; color:#f1f1f1; font-size:.84rem; margin-bottom:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .content-meta { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .impl-badge { font-size:.68rem; color:#22c55e; font-weight:600; }
+
+  .calendar-week { background:#0f0f0f; border-radius:8px; padding:12px; margin-bottom:8px; border:1px solid #1a1a1a; }
+  .calendar-week h4 { font-size:.75rem; font-weight:700; color:#F05A28; margin-bottom:8px; }
+  .calendar-day { display:flex; align-items:center; gap:8px; margin-bottom:5px; font-size:.75rem; }
+  .calendar-day .day-label { color:#555; width:80px; flex-shrink:0; }
+  .calendar-day .pillar-name { color:#bbb; }
+
+  input,select,textarea { background:#0f0f0f; border:1px solid #222; color:#e2e2e2; padding:8px 10px; border-radius:7px; font-size:.82rem; width:100%; }
+  input:focus,select:focus,textarea:focus { outline:none; border-color:#F05A28; }
+  .form-group { margin-bottom:12px; }
+  label { display:block; margin-bottom:4px; font-size:.72rem; color:#555; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+  .result-box { background:#0a0a0a; border:1px solid #1e1e1e; border-radius:8px; padding:14px; margin-top:12px; font-size:.78rem; white-space:pre-wrap; max-height:480px; overflow-y:auto; color:#aaa; line-height:1.6; }
+
+  .trend-item { padding:12px 0; border-bottom:1px solid #1a1a1a; }
+  .trend-item:last-child { border-bottom:none; }
+  .trend-title { font-weight:700; color:#f1f1f1; font-size:.84rem; margin-bottom:4px; }
+  .trend-hook { font-size:.76rem; color:#777; font-style:italic; margin-bottom:5px; }
+  .trend-meta { display:flex; gap:6px; flex-wrap:wrap; }
+
+  .dfy-cta-pill { background:#1a0d08; border:1px solid #F05A2855; color:#F05A28; font-size:.7rem; font-weight:700; padding:3px 8px; border-radius:12px; }
+  .empty-state { text-align:center; color:#333; padding:28px; font-size:.84rem; }
+  .refresh-btn { background:none; border:1px solid #222; color:#444; padding:5px 10px; border-radius:5px; cursor:pointer; font-size:.74rem; }
+  .refresh-btn:hover { border-color:#F05A28; color:#F05A28; }
+  .section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .section-header h3 { font-size:.9rem; font-weight:700; color:#f1f1f1; }
+  select option { background:#161616; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">TO</div>
+    <div>
+      <h1>Trade<span>Ops</span> <span style="color:#444;font-weight:400;font-size:.9rem;">YouTube Automation</span></h1>
+      <div style="font-size:.68rem;color:#555;margin-top:1px;">Education-first · HOW-TO tutorials · Done-for-you CTA</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <span class="strategy-badge">v2 — Education-First Strategy</span>
+    <div class="status-pill"><div class="dot"></div>Pipeline active</div>
+    <button class="refresh-btn" onclick="loadDashboard()">↻ Refresh</button>
+    <span id="last-updated" style="font-size:.68rem;color:#333;"></span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Run Banner -->
+  <div class="run-banner">
+    <div>
+      <h3>⚡ Run Content Pipeline</h3>
+      <p>Research → Script (HOW-TO) → SEO → Thumbnails → QA → Queue | CTA: tradeops.com (done-for-you)</p>
+    </div>
+    <div class="run-btns">
+      <button class="btn btn-dark btn-sm" onclick="runPipeline('tutorial')">📋 Tutorial</button>
+      <button class="btn btn-dark btn-sm" onclick="runPipeline('breakdown')">📊 Breakdown</button>
+      <button class="btn btn-dark btn-sm" onclick="runPipeline('interview')">🎙 Interview</button>
+      <button class="btn btn-orange" onclick="runBatch()">⚡ Full Batch</button>
+    </div>
+  </div>
+
+  <!-- Competitor Intel -->
+  <div class="competitor-intel">
+    <h3>Competitive Positioning — What We Beat and How</h3>
+    <div class="comp-row">
+      <div class="comp-card red">
+        <div class="comp-name">Profitable Tradie</div>
+        <div class="comp-gap">Mindset + concepts. Podcast-first. YouTube secondary. No step-by-step HOW-TO. 37 training videos.</div>
+        <div class="comp-ours">→ TradeOps: Step-by-step BUILD-IT tutorials with tool names, templates, real numbers</div>
+      </div>
+      <div class="comp-card yellow">
+        <div class="comp-name">Profit for Contractors</div>
+        <div class="comp-gap">Financial coaching. "No Bullshit" podcast. 9K clients. No operational workflows, no tech guides, no checklists.</div>
+        <div class="comp-ours">→ TradeOps: Implementation walkthroughs operators can pause-and-execute</div>
+      </div>
+      <div class="comp-card blue">
+        <div class="comp-name">ServiceTitan YouTube</div>
+        <div class="comp-gap">378 videos, 10K subs. Product demos only. Zero business education. Audience = existing customers.</div>
+        <div class="comp-ours">→ TradeOps: Software-agnostic education — works with any tool stack</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="grid-4" id="stats-row">
+    <div class="card">
+      <h2>Content Ready</h2>
+      <div class="metric metric-orange" id="stat-ready">—</div>
+      <div class="metric-sub" id="stat-formats">—</div>
+    </div>
+    <div class="card">
+      <h2>Needs Review</h2>
+      <div class="metric" id="stat-review">—</div>
+      <div class="metric-sub">Before publishing</div>
+    </div>
+    <div class="card">
+      <h2>Jobs Completed</h2>
+      <div class="metric" id="stat-completed">—</div>
+      <div class="metric-sub" id="stat-lastrun">Last run: —</div>
+    </div>
+    <div class="card">
+      <h2>Avg QA Score</h2>
+      <div class="metric" id="stat-qa">—</div>
+      <div class="metric-sub">Impl depth min: 88</div>
+    </div>
+  </div>
+
+  <!-- Pillars -->
+  <div class="card" style="margin-bottom:18px;">
+    <div class="section-header">
+      <h3>Education-First Content Pillars</h3>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="dfy-cta-pill">CTA: tradeops.com (done-for-you)</span>
+        <span style="font-size:.72rem;color:#444;">Next: <span id="next-pillar" style="color:#F05A28;">—</span> | Format: <span id="next-format" style="color:#F05A28;">—</span></span>
+      </div>
+    </div>
+    <div class="pillar-grid" id="pillar-grid">
+      <div class="pillar-tag">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('queue')">📋 Queue</button>
+    <button class="tab" onclick="switchTab('calendar')">📅 Calendar</button>
+    <button class="tab" onclick="switchTab('jobs')">⚙️ Jobs</button>
+    <button class="tab" onclick="switchTab('trends')">📡 Trends</button>
+    <button class="tab" onclick="switchTab('tools')">🛠 Tools</button>
+  </div>
+
+  <!-- Queue Tab -->
+  <div id="tab-queue" class="tab-content active">
+    <div class="grid-3">
+      <div class="card">
+        <div class="section-header"><h3>📋 Tutorials</h3><button class="refresh-btn" onclick="loadDashboard()">↻</button></div>
+        <div id="tutorial-queue"></div>
+      </div>
+      <div class="card">
+        <div class="section-header"><h3>📊 Breakdowns</h3></div>
+        <div id="breakdown-queue"></div>
+      </div>
+      <div class="card">
+        <div class="section-header"><h3>🎙 Interviews</h3></div>
+        <div id="interview-queue"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Calendar Tab -->
+  <div id="tab-calendar" class="tab-content">
+    <div class="grid-2">
+      <div class="card">
+        <h2>12-Week Rolling Content Calendar</h2>
+        <div id="content-calendar" style="margin-top:12px;"></div>
+      </div>
+      <div class="card">
+        <h2>Publish Schedule</h2>
+        <div style="margin-top:12px;" id="publish-schedule"></div>
+        <div style="margin-top:16px;padding:12px;background:#0f0f0f;border-radius:8px;font-size:.75rem;color:#555;">
+          <div style="color:#F05A28;font-weight:700;margin-bottom:6px;">vs Competitors</div>
+          <div>• Tue/Thu avoids Wed (Profit for Contractors podcast day)</div>
+          <div>• 7pm ET targets contractors off the job site</div>
+          <div>• 2x/week YouTube = more than Profitable Tradie YouTube output</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Jobs Tab -->
+  <div id="tab-jobs" class="tab-content">
+    <div class="card">
+      <div class="section-header"><h3>Pipeline Jobs</h3><button class="refresh-btn" onclick="loadJobs()">↻</button></div>
+      <table class="table">
+        <thead>
+          <tr><th>ID</th><th>Format</th><th>Pillar</th><th>Status</th><th>QA / Impl</th><th>Started</th></tr>
+        </thead>
+        <tbody id="jobs-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Trends Tab -->
+  <div id="tab-trends" class="tab-content">
+    <div class="card">
+      <div class="section-header">
+        <h3>Industry Trend Opportunities (HOW-TO Framing)</h3>
+        <button class="btn btn-dark btn-sm" onclick="runTrendScan()">🔍 Scan</button>
+      </div>
+      <div id="trends-list"><div class="empty-state">Run a trend scan to surface HOW-TO content opportunities</div></div>
+    </div>
+  </div>
+
+  <!-- Tools Tab -->
+  <div id="tab-tools" class="tab-content">
+    <div class="tab-bar" style="margin-bottom:14px;">
+      <button class="tab active" onclick="switchToolTab('script')">📝 Script</button>
+      <button class="tab" onclick="switchToolTab('seo')">🔍 SEO</button>
+      <button class="tab" onclick="switchToolTab('research')">🧠 Research</button>
+      <button class="tab" onclick="switchToolTab('engage')">💬 Comment</button>
+      <button class="tab" onclick="switchToolTab('compliance')">✅ Compliance</button>
+    </div>
+
+    <div id="tool-script" class="tool-content">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Generate HOW-TO Script</h2>
+          <div class="form-group"><label>Topic (use "How to..." framing)</label><input id="script-topic" placeholder="e.g. How to set up job costing for a plumbing company"></div>
+          <div class="form-group"><label>Pillar</label>
+            <select id="script-pillar">
+              <option value="job_costing">Job Costing</option>
+              <option value="scheduling_systems">Scheduling Systems</option>
+              <option value="owner_independence">Owner Independence</option>
+              <option value="hiring_systems">Hiring Systems</option>
+              <option value="kpi_tracking">KPI Tracking</option>
+              <option value="ghl_for_contractors">GHL for Contractors</option>
+              <option value="sop_systems">SOP Systems</option>
+              <option value="financial_systems">Financial Systems</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Format</label>
+            <select id="script-format">
+              <option value="tutorial">Tutorial (step-by-step how-to)</option>
+              <option value="breakdown">Breakdown (concept + real numbers)</option>
+              <option value="interview">Interview (operator case study)</option>
+            </select>
+          </div>
+          <button class="btn btn-orange" onclick="generateScript()" id="script-btn">Generate Script</button>
+        </div>
+        <div class="card"><h2>Script Output</h2><div id="script-result" class="result-box" style="min-height:300px;"><span style="color:#333;">Script will appear here...</span></div></div>
+      </div>
+    </div>
+
+    <div id="tool-seo" class="tool-content" style="display:none;">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Generate SEO Package</h2>
+          <div class="form-group"><label>Topic</label><input id="seo-topic" placeholder="e.g. Flat rate pricing setup for HVAC contractors"></div>
+          <div class="form-group"><label>Pillar</label>
+            <select id="seo-pillar">
+              <option value="job_costing">Job Costing</option>
+              <option value="scheduling_systems">Scheduling Systems</option>
+              <option value="ghl_for_contractors">GHL for Contractors</option>
+              <option value="owner_independence">Owner Independence</option>
+              <option value="kpi_tracking">KPI Tracking</option>
+              <option value="sop_systems">SOP Systems</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Format</label><select id="seo-format"><option value="tutorial">Tutorial</option><option value="breakdown">Breakdown</option><option value="interview">Interview</option></select></div>
+          <button class="btn btn-orange" onclick="generateSEO()" id="seo-btn">Generate SEO Package</button>
+        </div>
+        <div class="card"><h2>SEO Output</h2><div id="seo-result" class="result-box" style="min-height:300px;"><span style="color:#333;">SEO metadata will appear here...</span></div></div>
+      </div>
+    </div>
+
+    <div id="tool-research" class="tool-content" style="display:none;">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Research a Pillar</h2>
+          <div class="form-group"><label>Content Pillar</label>
+            <select id="research-pillar">
+              <option value="all">Auto-select (rotates through pillars)</option>
+              <option value="job_costing">Job Costing</option>
+              <option value="scheduling_systems">Scheduling Systems</option>
+              <option value="owner_independence">Owner Independence</option>
+              <option value="hiring_systems">Hiring Systems</option>
+              <option value="kpi_tracking">KPI Tracking</option>
+              <option value="ghl_for_contractors">GHL for Contractors</option>
+              <option value="sop_systems">SOP Systems</option>
+              <option value="financial_systems">Financial Systems</option>
+            </select>
+          </div>
+          <button class="btn btn-orange" onclick="runResearch()" id="research-btn">Run Research</button>
+        </div>
+        <div class="card"><h2>Research Output</h2><div id="research-result" class="result-box" style="min-height:300px;"><span style="color:#333;">Research brief will appear here...</span></div></div>
+      </div>
+    </div>
+
+    <div id="tool-engage" class="tool-content" style="display:none;">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Generate Comment Response</h2>
+          <div class="form-group"><label>Comment</label><textarea id="engage-comment" rows="3" placeholder="Paste a YouTube comment..."></textarea></div>
+          <div class="form-group"><label>Video Topic</label><input id="engage-topic" placeholder="e.g. How to set up job costing"></div>
+          <button class="btn btn-orange" onclick="generateResponse()" id="engage-btn">Generate Response</button>
+        </div>
+        <div class="card"><h2>Response Output</h2><div id="engage-result" class="result-box" style="min-height:200px;"><span style="color:#333;">Response will appear here...</span></div></div>
+      </div>
+    </div>
+
+    <div id="tool-compliance" class="tool-content" style="display:none;">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Compliance + CTA Check</h2>
+          <div style="font-size:.75rem;color:#F05A28;margin-bottom:12px;background:#1a0d08;padding:8px 10px;border-radius:6px;">⚠️ Also flags deprecated "systems audit" CTA — must use done-for-you framing</div>
+          <div class="form-group"><label>Title</label><input id="compliance-title" placeholder="YouTube title"></div>
+          <div class="form-group"><label>Description excerpt</label><textarea id="compliance-desc" rows="3" placeholder="Paste description..."></textarea></div>
+          <div class="form-group"><label>Script excerpt</label><textarea id="compliance-script" rows="2" placeholder="Paste script section..."></textarea></div>
+          <button class="btn btn-orange" onclick="runCompliance()" id="compliance-btn">Run Check</button>
+        </div>
+        <div class="card"><h2>Report</h2><div id="compliance-result" class="result-box" style="min-height:200px;"><span style="color:#333;">Report will appear here...</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+async function api(method, path, body) {
+  const opts = { method, headers: {'Content-Type':'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(API + path, opts);
+  return r.json();
+}
+
+function scoreClass(s) { return s>=80?'score-high':s>=65?'score-mid':'score-low'; }
+function badgeForStatus(s) {
+  if(s==='completed') return 'badge-green';
+  if(s==='running') return 'badge-blue';
+  if(s==='failed') return 'badge-red';
+  return 'badge-grey';
+}
+function formatBadge(f) {
+  const map = {tutorial:'badge-orange',breakdown:'badge-purple',interview:'badge-blue'};
+  return map[f]||'badge-grey';
+}
+
+async function loadDashboard() {
+  document.getElementById('last-updated').textContent = 'Updating...';
+  const data = await api('GET','/api/dashboard');
+
+  document.getElementById('stat-ready').textContent = data.queue?.summary?.totalReady??'—';
+  const fmts = data.queue?.summary;
+  document.getElementById('stat-formats').textContent = fmts ? `${fmts.tutorialReady||0}T · ${fmts.breakdownReady||0}B · ${fmts.interviewReady||0}I` : '—';
+  document.getElementById('stat-review').textContent = data.queue?.summary?.needsReview??'—';
+  document.getElementById('stat-completed').textContent = data.summary?.completed??'—';
+  document.getElementById('stat-lastrun').textContent = data.summary?.lastRun ? 'Last: '+new Date(data.summary.lastRun).toLocaleDateString() : 'Never';
+  document.getElementById('stat-qa').textContent = data.summary?.avgQaScore ? data.summary.avgQaScore+'/100' : '—';
+
+  if (data.contentPillars) {
+    document.getElementById('pillar-grid').innerHTML = data.contentPillars.map(p =>
+      `<span class="pillar-tag" onclick="setPillar('${p}')">How to ${p.replace(/_/g,' ')}</span>`
+    ).join('');
+  }
+  if (data.nextPillar) document.getElementById('next-pillar').textContent = data.nextPillar.replace(/_/g,' ');
+  if (data.nextFormat) document.getElementById('next-format').textContent = data.nextFormat;
+
+  if (data.queue?.nextPublish) {
+    const sch = data.queue.nextPublish;
+    document.getElementById('publish-schedule').innerHTML = Object.entries(sch).map(([fmt,slot]) =>
+      slot ? `<div style="background:#0f0f0f;border-left:3px solid #F05A28;padding:10px 12px;border-radius:0 8px 8px 0;margin-bottom:8px;"><div style="font-size:.78rem;font-weight:700;color:#f1f1f1;text-transform:uppercase;">${fmt}</div><div style="font-size:.75rem;color:#F05A28;">${slot.formattedTime}</div><div style="font-size:.72rem;color:#444;margin-top:2px;">${slot.description||''}</div></div>` : ''
+    ).join('');
+  }
+
+  if (data.calendar) {
+    document.getElementById('content-calendar').innerHTML = data.calendar.map(w => `
+      <div class="calendar-week">
+        <h4>Week ${w.week}</h4>
+        ${w.tuesday ? `<div class="calendar-day"><span class="day-label">Tuesday</span><span class="badge badge-orange" style="margin-right:6px;">Tutorial</span><span class="pillar-name">how to ${w.tuesday.pillar.replace(/_/g,' ')}</span></div>` : ''}
+        ${w.thursday ? `<div class="calendar-day"><span class="day-label">Thursday</span><span class="badge badge-purple" style="margin-right:6px;">Breakdown</span><span class="pillar-name">how to ${w.thursday.pillar.replace(/_/g,' ')}</span></div>` : ''}
+        ${w.friday ? `<div class="calendar-day"><span class="day-label">Friday</span><span class="badge badge-blue" style="margin-right:6px;">Interview</span><span class="pillar-name">${w.friday.pillar.replace(/_/g,' ')}</span></div>` : ''}
+      </div>
+    `).join('');
+  }
+
+  loadContent(data);
+  renderJobs(data.recentJobs||[]);
+  document.getElementById('last-updated').textContent = 'Updated '+new Date().toLocaleTimeString();
+}
+
+function loadContent(data) {
+  const all = data?.queue?.readyItems || [];
+  const renderQ = (items, el, empty) => {
+    if (!items.length) { el.innerHTML = `<div class="empty-state">${empty}</div>`; return; }
+    el.innerHTML = items.slice(0,8).map(c => `
+      <div class="content-item">
+        <div class="content-title">${c.seo?.title||c.topic||'Untitled'}</div>
+        <div class="content-meta">
+          <span class="badge ${c.status==='ready'?'badge-green':'badge-yellow'}">${c.status}</span>
+          <span class="badge badge-grey">${(c.pillar||'').replace(/_/g,' ')}</span>
+          ${c.qa?.overallScore?`<span style="font-size:.7rem;color:#555;">QA:${c.qa.overallScore}</span>`:''}
+          ${c.qa?.implementationTest?.includes('✅')?'<span class="impl-badge">✅ impl</span>':''}
+        </div>
+      </div>`).join('');
+  };
+  // Fetch full content from API for queue display
+  api('GET','/api/content').then(res => {
+    const items = res.content||[];
+    renderQ(items.filter(c=>c.format==='tutorial'), document.getElementById('tutorial-queue'), 'No tutorials — run Tutorial pipeline');
+    renderQ(items.filter(c=>c.format==='breakdown'), document.getElementById('breakdown-queue'), 'No breakdowns — run Breakdown pipeline');
+    renderQ(items.filter(c=>c.format==='interview'), document.getElementById('interview-queue'), 'No interviews — run Interview pipeline');
+  });
+}
+
+function renderJobs(jobs) {
+  const tbody = document.getElementById('jobs-table');
+  if(!jobs.length){tbody.innerHTML='<tr><td colspan="6" class="empty-state">No jobs yet</td></tr>';return;}
+  tbody.innerHTML = jobs.slice(0,15).map(j => {
+    const s = j.qaScore||0;
+    return `<tr>
+      <td style="font-family:monospace;color:#444;font-size:.7rem;">${j.id.split('-')[0]}</td>
+      <td>${j.format?`<span class="badge ${formatBadge(j.format)}">${j.format}</span>`:'—'}</td>
+      <td style="color:#666;font-size:.74rem;">${(j.pillar||'—').replace(/_/g,' ')}</td>
+      <td><span class="badge ${badgeForStatus(j.status)}">${j.status}</span></td>
+      <td>${j.qaScore?`<span style="color:${s>=80?'#4ade80':s>=65?'#fbbf24':'#f87171'}">${s}</span><div class="score-bar"><div class="score-fill ${scoreClass(s)}" style="width:${s}%"></div></div>`:'—'}</td>
+      <td style="font-size:.7rem;color:#444;">${j.startedAt?new Date(j.startedAt).toLocaleString():'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadJobs() { const d = await api('GET','/api/jobs'); renderJobs(d.jobs||[]); }
+
+async function runPipeline(format) {
+  const pillar = document.querySelector('.pillar-tag.active')?.textContent?.replace(/^how to /,'').replace(/ /g,'_')||null;
+  const fmtClean = pillar?.replace(/^how to /,'').replace(/ /g,'_') || null;
+  await api('POST','/api/pipeline/run',{format,pillar:fmtClean});
+  setTimeout(loadDashboard,2000);
+}
+
+async function runBatch() { await api('POST','/api/pipeline/run-batch',{}); setTimeout(loadDashboard,3000); }
+
+async function runTrendScan() {
+  const el = document.getElementById('trends-list');
+  el.innerHTML = '<div class="empty-state">Scanning for HOW-TO opportunities...</div>';
+  const data = await api('POST','/api/agents/trends',{});
+  if (!data.trends?.length){el.innerHTML='<div class="empty-state">No trends found</div>';return;}
+  el.innerHTML = data.trends.map(t=>`
+    <div class="trend-item">
+      <div class="trend-title">${t.tutorialTitle||t.title}</div>
+      <div class="trend-hook">"${t.hook}"</div>
+      <div style="font-size:.73rem;color:#555;margin-bottom:6px;">→ ${t.implementationAngle||''}</div>
+      <div class="trend-meta">
+        <span class="badge badge-orange">${t.urgency}</span>
+        <span class="badge badge-grey">${(t.pillar||'').replace(/_/g,' ')}</span>
+        <span class="badge ${formatBadge(t.format||'tutorial')}">${t.format||'tutorial'}</span>
+      </div>
+    </div>`).join('');
+}
+
+async function generateScript() {
+  const topic = document.getElementById('script-topic').value;
+  if(!topic){alert('Enter a topic');return;}
+  const btn = document.getElementById('script-btn');
+  btn.textContent='Generating...';btn.disabled=true;
+  const data = await api('POST','/api/agents/script',{topic,pillar:document.getElementById('script-pillar').value,format:document.getElementById('script-format').value});
+  document.getElementById('script-result').textContent = data.script||JSON.stringify(data,null,2);
+  btn.textContent='Generate Script';btn.disabled=false;
+}
+
+async function generateSEO() {
+  const topic = document.getElementById('seo-topic').value;
+  if(!topic){alert('Enter a topic');return;}
+  const btn = document.getElementById('seo-btn');
+  btn.textContent='Generating...';btn.disabled=true;
+  const data = await api('POST','/api/agents/seo',{topic,pillar:document.getElementById('seo-pillar').value,format:document.getElementById('seo-format').value});
+  document.getElementById('seo-result').textContent = JSON.stringify(data,null,2);
+  btn.textContent='Generate SEO Package';btn.disabled=false;
+}
+
+async function runResearch() {
+  const btn = document.getElementById('research-btn');
+  btn.textContent='Researching...';btn.disabled=true;
+  const data = await api('POST','/api/agents/research',{pillar:document.getElementById('research-pillar').value});
+  document.getElementById('research-result').textContent = JSON.stringify(data,null,2);
+  btn.textContent='Run Research';btn.disabled=false;
+}
+
+async function generateResponse() {
+  const comment = document.getElementById('engage-comment').value;
+  if(!comment){alert('Enter a comment');return;}
+  const btn = document.getElementById('engage-btn');
+  btn.textContent='Generating...';btn.disabled=true;
+  const data = await api('POST','/api/agents/engage',{comment,videoTopic:document.getElementById('engage-topic').value});
+  document.getElementById('engage-result').textContent = data.flagged ? `⚠️ FLAGGED: ${data.intent}\nAction: ${data.action}` : `Intent: ${data.intent}\n\n${data.response}`;
+  btn.textContent='Generate Response';btn.disabled=false;
+}
+
+async function runCompliance() {
+  const btn = document.getElementById('compliance-btn');
+  btn.textContent='Checking...';btn.disabled=true;
+  const data = await api('POST','/api/agents/compliance',{title:document.getElementById('compliance-title').value,description:document.getElementById('compliance-desc').value,script:document.getElementById('compliance-script').value});
+  let out = `${data.pass?'✅':'❌'} ${data.pass?'PASS':'FAIL'} — Score: ${data.score}/100\n\n`;
+  if(data.issues?.length) out+=`Issues:\n${data.issues.map(i=>`  [${i.severity}] ${i.detail}`).join('\n')}\n\n`;
+  if(data.requiredAdditions?.length) out+=`Required Additions:\n${data.requiredAdditions.join('\n')}`;
+  document.getElementById('compliance-result').textContent = out;
+  btn.textContent='Run Check';btn.disabled=false;
+}
+
+function setPillar(p) {
+  document.querySelectorAll('.pillar-tag').forEach(el=>el.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.tab-bar:first-of-type .tab').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function switchToolTab(name) {
+  document.querySelectorAll('.tool-content').forEach(el=>el.style.display='none');
+  document.getElementById('tool-'+name).style.display='block';
+  document.querySelectorAll('#tab-tools .tab-bar .tab').forEach(el=>el.classList.remove('active'));
+  if(event&&event.target) event.target.classList.add('active');
+}
+
+loadDashboard();
+setInterval(loadDashboard,60000);
+</script>
+</body>
+</html>
