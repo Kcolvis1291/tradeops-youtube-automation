@@ -614,23 +614,41 @@ app.post('/api/pipeline/from-script', async (req, res) => {
       tags: tags || ['home service business', 'contractor tips', 'tradeops', 'GoHighLevel', 'follow-up automation']
     };
     console.log('[from-script] Starting voiceover generation...');
-    // TTS: try Python gtts (HTTP-based), fallback to ffmpeg silence
+    // TTS: use fluent-ffmpeg (already installed) with msedge-tts attempt first
         const _audioPath = '/tmp/voiceover_' + Date.now() + '.mp3';
         const _cleanScript = script.replace(/\[.*?\]/g, '').replace(/---+/g, '').replace(/\n{3,}/g, '\n\n').trim();
-        console.log('[from-script] Generating TTS,', _cleanScript.length, 'chars...');
-        const _scriptTxtPath = '/tmp/tts_' + Date.now() + '.txt';
-        require('fs').writeFileSync(_scriptTxtPath, _cleanScript, 'utf8');
+        console.log('[from-script] Generating TTS audio,', _cleanScript.length, 'chars...');
+        const _ffmpegLib = require('fluent-ffmpeg');
         try {
-          const { execSync } = require('child_process');
-          try { execSync('pip3 install gtts -q', { timeout: 60000, stdio: 'pipe' }); } catch(_e) {}
-          const pyCmd = 'from gtts import gTTS; text=open("' + _scriptTxtPath + '").read(); tts=gTTS(text=text, lang="en", slow=False); tts.save("' + _audioPath + '")';
-          execSync('python3 -c "' + pyCmd + '"', { timeout: 180000 });
-          console.log('[from-script] gtts audio generated');
+          const _ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+          _ffmpegLib.setFfmpegPath(_ffmpegPath);
+        } catch(_fe) { /* use system ffmpeg */ }
+        // Try msedge-tts first
+        let _ttsSuccess = false;
+        try {
+          const _edgeTts = new MsEdgeTTS();
+          await _edgeTts.setMetadata('en-US-ChristopherNeural', EDGE_TTS_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+          await _edgeTts.toFile(_audioPath, _cleanScript);
+          _ttsSuccess = true;
+          console.log('[from-script] Edge TTS audio generated');
         } catch (_ttsErr) {
-          console.warn('[from-script] gtts failed:', _ttsErr.message || String(_ttsErr));
-          const { execSync } = require('child_process');
-          execSync('ffmpeg -f lavfi -i anullsrc=r=44100:cl=stereo -t 420 -c:a libmp3lame -b:a 128k "' + _audioPath + '" -y', { timeout: 60000 });
-          console.log('[from-script] Silent fallback audio generated');
+          console.warn('[from-script] Edge TTS failed:', String(_ttsErr));
+        }
+        // Fallback: fluent-ffmpeg silent audio
+        if (!_ttsSuccess) {
+          console.log('[from-script] Generating silent audio fallback via fluent-ffmpeg...');
+          await new Promise((_res, _rej) => {
+            _ffmpegLib()
+              .input('anullsrc=r=44100:cl=stereo')
+              .inputFormat('lavfi')
+              .duration(420)
+              .audioCodec('libmp3lame')
+              .audioBitrate('128k')
+              .output(_audioPath)
+              .on('end', () => { console.log('[from-script] Silent audio generated'); _res(); })
+              .on('error', (e) => { console.error('[from-script] ffmpeg error:', e.message); _rej(e); })
+              .run();
+          });
         }
         const voiceover = { audioPath: _audioPath };
     console.log('[from-script] Voiceover done, rendering video...');
