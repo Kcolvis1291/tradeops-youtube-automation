@@ -59,6 +59,7 @@ const { uploadVideoAndShorts, getAuthUrl, exchangeCodeForTokens } = require('./a
 const { uploadToTikTok } = require('./agents/tiktokAgent');
 const { uploadToInstagram } = require('./agents/instagramAgent');
 const { uploadToTwitter } = require('./agents/twitterAgent');
+const { MsEdgeTTS, OUTPUT_FORMAT: EDGE_TTS_FORMAT } = require('msedge-tts');
 
 const path = require('path');
 const fs = require('fs');
@@ -613,7 +614,13 @@ app.post('/api/pipeline/from-script', async (req, res) => {
       tags: tags || ['home service business', 'contractor tips', 'tradeops', 'GoHighLevel', 'follow-up automation']
     };
     console.log('[from-script] Starting voiceover generation...');
-    const voiceover = await generateVoiceover({ script, apiKey: process.env.ELEVENLABS_API_KEY });
+    const _edgeTts = new MsEdgeTTS();
+    await _edgeTts.setMetadata('en-US-ChristopherNeural', EDGE_TTS_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    const _audioPath = '/tmp/voiceover_' + Date.now() + '.mp3';
+    const _cleanScript = script.replace(/\[.*?\]/g, '').replace(/---+/g, '').replace(/\n{3,}/g, '\n\n').trim();
+    console.log('[from-script] Generating Edge TTS audio,', _cleanScript.length, 'chars...');
+    await _edgeTts.toFile(_audioPath, _cleanScript);
+    const voiceover = { audioPath: _audioPath };
     console.log('[from-script] Voiceover done, rendering video...');
     const videoResults = await renderVideo({
       script,
