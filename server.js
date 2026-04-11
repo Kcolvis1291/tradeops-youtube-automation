@@ -614,39 +614,45 @@ app.post('/api/pipeline/from-script', async (req, res) => {
       tags: tags || ['home service business', 'contractor tips', 'tradeops', 'GoHighLevel', 'follow-up automation']
     };
     console.log('[from-script] Starting voiceover generation...');
-    // TTS: use fluent-ffmpeg (already installed) with msedge-tts attempt first
+    // TTS: msedge-tts attempt, fallback to /dev/zero silence via fluent-ffmpeg
         const _audioPath = '/tmp/voiceover_' + Date.now() + '.mp3';
         const _cleanScript = script.replace(/\[.*?\]/g, '').replace(/---+/g, '').replace(/\n{3,}/g, '\n\n').trim();
-        console.log('[from-script] Generating TTS audio,', _cleanScript.length, 'chars...');
+        console.log('[from-script] Script length:', _cleanScript.length, 'chars');
         const _ffmpegLib = require('fluent-ffmpeg');
         try {
           const _ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
           _ffmpegLib.setFfmpegPath(_ffmpegPath);
-        } catch(_fe) { /* use system ffmpeg */ }
-        // Try msedge-tts first
+          console.log('[from-script] ffmpeg path:', _ffmpegPath);
+        } catch(_fe) {
+          console.log('[from-script] Using system ffmpeg');
+        }
         let _ttsSuccess = false;
+        // Try msedge-tts
         try {
-          const _edgeTts = new MsEdgeTTS();
-          await _edgeTts.setMetadata('en-US-ChristopherNeural', EDGE_TTS_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-          await _edgeTts.toFile(_audioPath, _cleanScript);
-          _ttsSuccess = true;
-          console.log('[from-script] Edge TTS audio generated');
+          console.log('[from-script] Trying Edge TTS, MsEdgeTTS type:', typeof MsEdgeTTS);
+          if (typeof MsEdgeTTS === 'function') {
+            const _edgeTts = new MsEdgeTTS();
+            await _edgeTts.setMetadata('en-US-ChristopherNeural', EDGE_TTS_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+            await _edgeTts.toFile(_audioPath, _cleanScript);
+            _ttsSuccess = true;
+            console.log('[from-script] Edge TTS success');
+          }
         } catch (_ttsErr) {
           console.warn('[from-script] Edge TTS failed:', String(_ttsErr));
         }
-        // Fallback: fluent-ffmpeg silent audio
+        // Fallback: /dev/zero silence (no lavfi needed)
         if (!_ttsSuccess) {
-          console.log('[from-script] Generating silent audio fallback via fluent-ffmpeg...');
+          console.log('[from-script] Generating silent audio via /dev/zero...');
           await new Promise((_res, _rej) => {
             _ffmpegLib()
-              .input('anullsrc=r=44100:cl=stereo')
-              .inputFormat('lavfi')
+              .input('/dev/zero')
+              .inputOptions(['-ar 44100', '-ac 2', '-f s16le'])
               .duration(420)
               .audioCodec('libmp3lame')
               .audioBitrate('128k')
               .output(_audioPath)
-              .on('end', () => { console.log('[from-script] Silent audio generated'); _res(); })
-              .on('error', (e) => { console.error('[from-script] ffmpeg error:', e.message); _rej(e); })
+              .on('end', () => { console.log('[from-script] Silent audio done'); _res(); })
+              .on('error', (e) => { console.error('[from-script] Audio error:', e.message); _rej(e); })
               .run();
           });
         }
