@@ -596,4 +596,51 @@ app.listen(PORT, () => {
   `);
 });
 
+
+// ── Bypass endpoint: run ElevenLabs → FFmpeg → YouTube from pre-written script
+app.post('/api/pipeline/from-script', async (req, res) => {
+  const { script, title, description, tags, pillar, format } = req.body;
+  if (!script || !title) return res.status(400).json({ error: 'script and title required' });
+
+  const job = createJob('from_script', { pillar: pillar || 'ghl_for_contractors', format: format || 'tutorial' });
+  updateJob(job.id, { status: 'running', startedAt: new Date().toISOString() });
+  res.json({ message: 'Pipeline started from script', jobId: job.id, status: 'running' });
+
+  try {
+    const seo = {
+      title,
+      description: description || title,
+      tags: tags || ['home service business', 'contractor tips', 'tradeops', 'GoHighLevel', 'follow-up automation']
+    };
+    console.log('[from-script] Starting voiceover generation...');
+    const voiceover = await generateVoiceover({ script, apiKey: process.env.ELEVENLABS_API_KEY });
+    console.log('[from-script] Voiceover done, rendering video...');
+    const videoResults = await renderVideo({
+      script,
+      title,
+      format: format || 'tutorial',
+      audioPath: voiceover.audioPath,
+      outputDir: '/tmp'
+    });
+    console.log('[from-script] Video rendered, uploading to YouTube...');
+    let youtubeResult = null;
+    if (process.env.YOUTUBE_REFRESH_TOKEN) {
+      youtubeResult = await uploadVideoAndShorts({
+        landscapePath: videoResults.landscapePath,
+        shortsPath: videoResults.shortsPath,
+        contentPackage: { seo, pillar: pillar || 'ghl_for_contractors', format: format || 'tutorial', script },
+        publishNow: true,
+      });
+      console.log('[from-script] YouTube upload complete:', JSON.stringify(youtubeResult?.video?.url));
+    } else {
+      console.log('[from-script] No YOUTUBE_REFRESH_TOKEN — skipping upload');
+    }
+    updateJob(job.id, { status: 'completed', completedAt: new Date().toISOString(), result: { youtube: youtubeResult } });
+    console.log('[from-script] Job ' + job.id + ' completed');
+  } catch (err) {
+    console.error('[from-script] Error:', err.message);
+    updateJob(job.id, { status: 'failed', error: err.message, completedAt: new Date().toISOString() });
+  }
+});
+
 module.exports = app;
